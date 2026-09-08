@@ -38,30 +38,39 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun pickFolder() {
-        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
-        startActivityForResult(intent, REQUEST_CODE_PICK_FOLDER)
-    }
+private fun pickFolder() {
+    val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
+    intent.addFlags(
+        Intent.FLAG_GRANT_READ_URI_PERMISSION or
+        Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION
+    )
+    startActivityForResult(intent, REQUEST_CODE_PICK_FOLDER)
+}
 
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == REQUEST_CODE_PICK_FOLDER) {
-            if (resultCode == Activity.RESULT_OK && data?.data != null) {
-                val treeUri = data.data!!
+override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+    super.onActivityResult(requestCode, resultCode, data)
+    if (requestCode == REQUEST_CODE_PICK_FOLDER) {
+        if (resultCode == Activity.RESULT_OK && data?.data != null) {
+            val treeUri = data.data!!
 
-                // 拿到长期持久化的读权限，否则下次启动 app 就没法再访问这个文件夹了
+            // 拿到长期持久化的读权限，否则下次启动 app 就没法再访问这个文件夹了
+            try {
                 contentResolver.takePersistableUriPermission(
                     treeUri,
                     Intent.FLAG_GRANT_READ_URI_PERMISSION
                 )
-
-                prefs.edit().putString(KEY_FOLDER_URI, treeUri.toString()).apply()
-                applyRandomWallpaperFrom(treeUri)
-            } else {
-                toastAndFinish("未选择文件夹，已取消")
+            } catch (e: SecurityException) {
+                toastAndFinish("获取文件夹权限失败：${e.message}")
+                return
             }
+
+            prefs.edit().putString(KEY_FOLDER_URI, treeUri.toString()).commit()
+            applyRandomWallpaperFrom(treeUri)
+        } else {
+            toastAndFinish("未选择文件夹，已取消")
         }
     }
+}
 
     private fun applyRandomWallpaperFrom(treeUri: Uri) {
         val folder = DocumentFile.fromTreeUri(this, treeUri)
